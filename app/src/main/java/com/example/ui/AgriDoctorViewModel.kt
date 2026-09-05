@@ -11,6 +11,7 @@ import com.example.data.local.DiagnosisEntity
 import com.example.data.model.CenterType
 import com.example.data.model.CropDiagnosis
 import com.example.data.model.CrossHostDisease
+import com.example.data.model.FarmerProfile
 import com.example.data.remote.GeminiService
 import com.example.data.repository.AgriKnowledgeBase
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,9 +36,21 @@ data class AgriDoctorUiState(
     val infoMessage: String? = null,
     val showPlacesDialog: Boolean = false,
     val showStudyDialog: Boolean = false,
+    val showCameraScanner: Boolean = false,
+    val showWeatherDialog: Boolean = false,
+    val selectedWeatherDistrict: String = "Musanze",
     val selectedCenterType: CenterType? = null,
     val centerSearchQuery: String = "",
-    val crossHostSearchQuery: String = ""
+    val crossHostSearchQuery: String = "",
+    val farmerProfile: FarmerProfile = FarmerProfile(),
+    val showFarmerProfileDialog: Boolean = false,
+    val showDiseaseEncyclopedia: Boolean = false,
+    val showMedicalMap: Boolean = false,
+    val isOfflineMode: Boolean = false,
+    val showVoiceDiagnosisDialog: Boolean = false,
+    val showGrowthTipsDialog: Boolean = false,
+    val showNotificationsDialog: Boolean = false,
+    val unreadAlertsCount: Int = 3
 )
 
 enum class AppLanguage {
@@ -128,6 +141,100 @@ class AgriDoctorViewModel(application: Application) : AndroidViewModel(applicati
         _uiState.update { it.copy(showStudyDialog = false) }
     }
 
+    fun openCameraScanner() {
+        _uiState.update { it.copy(showCameraScanner = true) }
+    }
+
+    fun closeCameraScanner() {
+        _uiState.update { it.copy(showCameraScanner = false) }
+    }
+
+    fun setWeatherDistrict(district: String) {
+        _uiState.update { it.copy(selectedWeatherDistrict = district) }
+    }
+
+    fun openWeatherDialog() {
+        _uiState.update { it.copy(showWeatherDialog = true) }
+    }
+
+    fun closeWeatherDialog() {
+        _uiState.update { it.copy(showWeatherDialog = false) }
+    }
+
+    fun openFarmerProfileDialog() {
+        _uiState.update { it.copy(showFarmerProfileDialog = true) }
+    }
+
+    fun closeFarmerProfileDialog() {
+        _uiState.update { it.copy(showFarmerProfileDialog = false) }
+    }
+
+    fun updateFarmerProfile(profile: FarmerProfile) {
+        _uiState.update { it.copy(farmerProfile = profile) }
+    }
+
+    fun syncFarmerLocation(district: String, locationStr: String) {
+        _uiState.update {
+            it.copy(
+                selectedLocation = locationStr,
+                selectedWeatherDistrict = district
+            )
+        }
+    }
+
+    fun openDiseaseEncyclopedia() {
+        _uiState.update { it.copy(showDiseaseEncyclopedia = true) }
+    }
+
+    fun closeDiseaseEncyclopedia() {
+        _uiState.update { it.copy(showDiseaseEncyclopedia = false) }
+    }
+
+    fun openMedicalMap(targetDistrict: String? = null) {
+        _uiState.update {
+            it.copy(
+                showMedicalMap = true,
+                centerSearchQuery = targetDistrict ?: it.centerSearchQuery
+            )
+        }
+    }
+
+    fun closeMedicalMap() {
+        _uiState.update { it.copy(showMedicalMap = false) }
+    }
+
+    fun toggleOfflineMode() {
+        _uiState.update { it.copy(isOfflineMode = !it.isOfflineMode) }
+    }
+
+    fun setOfflineMode(offline: Boolean) {
+        _uiState.update { it.copy(isOfflineMode = offline) }
+    }
+
+    fun openVoiceDiagnosis() {
+        _uiState.update { it.copy(showVoiceDiagnosisDialog = true) }
+    }
+
+    fun closeVoiceDiagnosis() {
+        _uiState.update { it.copy(showVoiceDiagnosisDialog = false) }
+    }
+
+    fun openGrowthTips() {
+        _uiState.update { it.copy(showGrowthTipsDialog = true) }
+    }
+
+    fun closeGrowthTips() {
+        _uiState.update { it.copy(showGrowthTipsDialog = false) }
+    }
+
+    fun openNotifications() {
+        _uiState.update { it.copy(showNotificationsDialog = true, unreadAlertsCount = 0) }
+    }
+
+    fun closeNotifications() {
+        _uiState.update { it.copy(showNotificationsDialog = false) }
+    }
+
     fun onCenterSearchQueryChanged(q: String) {
         _uiState.update { it.copy(centerSearchQuery = q) }
     }
@@ -189,6 +296,33 @@ class AgriDoctorViewModel(application: Application) : AndroidViewModel(applicati
         _uiState.update { it.copy(isDiagnosing = true, infoMessage = null) }
 
         viewModelScope.launch {
+            if (state.isOfflineMode) {
+                // Explicit Offline Mode: run instant local East Africa knowledge base
+                val fallback = AgriKnowledgeBase.findMatchingDiagnosis(
+                    state.selectedCrop,
+                    state.problemDescription,
+                    state.selectedLocation
+                ).copy(
+                    cropName = state.selectedCrop,
+                    location = state.selectedLocation,
+                    problemDescription = state.problemDescription,
+                    photoUri = state.selectedPhotoUri?.toString()
+                )
+
+                val id = dao.insertDiagnosis(DiagnosisEntity.fromDomain(fallback))
+                val saved = fallback.copy(id = id)
+
+                val isRw = state.language == AppLanguage.KINYARWANDA || state.isKinyarwandaFocus
+                _uiState.update {
+                    it.copy(
+                        isDiagnosing = false,
+                        currentDiagnosis = saved,
+                        infoMessage = if (isRw) "Ubusuzume bwakozwe nta interineti (Offline Knowledge Base)" else "Offline Diagnosis Active (No internet used)"
+                    )
+                }
+                return@launch
+            }
+
             try {
                 val diagnosis = geminiService.diagnoseCrop(
                     photoUri = state.selectedPhotoUri,
@@ -227,11 +361,31 @@ class AgriDoctorViewModel(application: Application) : AndroidViewModel(applicati
                     it.copy(
                         isDiagnosing = false,
                         currentDiagnosis = saved,
-                        infoMessage = "Diagnosed using Agri-Doctor East Africa Knowledge Base."
+                        infoMessage = "Diagnosed using Agri-Doctor East Africa Knowledge Base (Offline Fallback)."
                     )
                 }
             }
         }
+    }
+
+    fun diagnoseFromVoice(recognizedText: String, cropName: String) {
+        _uiState.update {
+            it.copy(
+                selectedCrop = cropName,
+                problemDescription = recognizedText
+            )
+        }
+        diagnose()
+    }
+
+    fun speakCustomText(text: String) {
+        if (!isTtsInitialized || tts == null) return
+        if (_uiState.value.isSpeaking) {
+            stopSpeaking()
+            return
+        }
+        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "agri_doctor_custom_speech")
+        _uiState.update { it.copy(isSpeaking = true) }
     }
 
     fun deleteHistoryItem(id: Long) {

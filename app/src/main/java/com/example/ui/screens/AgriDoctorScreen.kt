@@ -34,11 +34,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Agriculture
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Eco
@@ -48,6 +52,11 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Biotech
@@ -55,10 +64,12 @@ import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -110,15 +121,25 @@ import com.example.data.model.CropDiagnosis
 import com.example.data.repository.AgriKnowledgeBase
 import com.example.data.repository.CrossHostDiseasesRepository
 import com.example.data.repository.TreatmentCentersRepository
+import com.example.data.repository.WeatherAlertRepository
 import com.example.ui.AgriDoctorViewModel
 import com.example.ui.AppLanguage
 import com.example.ui.components.AgrodealerCard
 import com.example.ui.components.BlessingCard
+import com.example.ui.components.CameraScannerDialog
 import com.example.ui.components.CrossHostStudyDialog
+import com.example.ui.components.DiseaseEncyclopediaDialog
+import com.example.ui.components.FarmNotificationsDialog
+import com.example.ui.components.FarmerPersonalProfileDialog
 import com.example.ui.components.FirstAidRemedyCard
+import com.example.ui.components.GrowthTipsDialog
+import com.example.ui.components.LocalMedicalSupplyMapDialog
 import com.example.ui.components.SectionHeader
 import com.example.ui.components.TreatmentCard
 import com.example.ui.components.TreatmentPlacesDialog
+import com.example.ui.components.VoiceDiagnosisDialog
+import com.example.ui.components.WeatherAlertCard
+import com.example.ui.components.WeatherAlertDialog
 import com.example.ui.theme.EarthTerracotta
 import com.example.ui.theme.EmeraldGreen
 import com.example.ui.theme.FarmSurfaceLight
@@ -239,20 +260,15 @@ fun AgriDoctorScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_app_logo),
+                            contentDescription = "Agri-Doctor AI Logo",
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(42.dp)
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(GeoPrimary),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Agriculture,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
+                                .border(1.dp, GeoPrimary.copy(alpha = 0.3f), RoundedCornerShape(12.dp)),
+                            contentScale = ContentScale.Crop
+                        )
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
@@ -265,7 +281,7 @@ fun AgriDoctorScreen(
                                 text = if (isRw) {
                                     "${uiState.selectedLocation.ifBlank { "Kigali, Rwanda" }} • Muganga w'Ibihingwa".uppercase()
                                 } else {
-                                    "${uiState.selectedLocation.ifBlank { "Kigali, Rwanda" }} • Plant Health Specialist".uppercase()
+                                    "${uiState.selectedLocation.ifBlank { "Kigali, Rwanda" }} • Plant & Livestock Specialist".uppercase()
                                 },
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
@@ -277,35 +293,146 @@ fun AgriDoctorScreen(
                     }
                 },
                 actions = {
+                    // Offline Mode Switch / Status
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (uiState.isOfflineMode) Color(0xFFE65100).copy(alpha = 0.15f) else GeoPrimary.copy(alpha = 0.12f),
+                        modifier = Modifier
+                            .clickable { viewModel.toggleOfflineMode() }
+                            .testTag("offline_mode_toggle_btn")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (uiState.isOfflineMode) Icons.Default.CloudOff else Icons.Default.CloudDone,
+                                contentDescription = "Offline Mode",
+                                tint = if (uiState.isOfflineMode) Color(0xFFE65100) else GeoPrimary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = if (uiState.isOfflineMode) "Offline" else "Online",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp,
+                                color = if (uiState.isOfflineMode) Color(0xFFE65100) else GeoPrimary
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    // Voice Diagnosis Shortcut Button
+                    IconButton(
+                        onClick = { viewModel.openVoiceDiagnosis() },
+                        modifier = Modifier.testTag("top_bar_voice_btn")
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Mic,
+                                    contentDescription = "Voice Diagnosis",
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Farm Notifications & Alerts Bell with Unread Badge
+                    IconButton(
+                        onClick = { viewModel.openNotifications() },
+                        modifier = Modifier.testTag("top_bar_notifications_btn")
+                    ) {
+                        Box(contentAlignment = Alignment.TopEnd) {
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Notifications,
+                                        contentDescription = "Farm Alerts",
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                            if (uiState.unreadAlertsCount > 0) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = Color(0xFFD32F2F),
+                                    modifier = Modifier.size(14.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = "${uiState.unreadAlertsCount}",
+                                            color = Color.White,
+                                            fontSize = 8.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Farmer Personal Profile Button
+                    IconButton(
+                        onClick = { viewModel.openFarmerProfileDialog() },
+                        modifier = Modifier.testTag("farmer_profile_button")
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.AccountCircle,
+                                    contentDescription = "Farmer Personal Account",
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+
                     // Language Switcher (English vs Kinyarwanda Mode)
                     Surface(
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(14.dp),
                         color = MaterialTheme.colorScheme.primaryContainer,
                         modifier = Modifier
                             .clickable { viewModel.toggleLanguage() }
                             .testTag("language_toggle_button")
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Translate,
                                 contentDescription = "Language Mode",
                                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.size(15.dp)
+                                modifier = Modifier.size(13.dp)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(3.dp))
                             Text(
                                 text = if (isRw) "🇷🇼 RW" else "🇬🇧 EN",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
                     }
-
-                    Spacer(modifier = Modifier.width(4.dp))
 
                     // Dark Mode / Light Mode Toggle
                     IconButton(
@@ -383,7 +510,7 @@ fun AgriDoctorScreen(
                         Surface(
                             color = MaterialTheme.colorScheme.primaryContainer,
                             shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Home,
@@ -398,117 +525,149 @@ fun AgriDoctorScreen(
                         Text(
                             text = if (isRw) "AHABANZA" else "HOME",
                             style = MaterialTheme.typography.labelSmall,
-                            fontSize = 9.5.sp,
+                            fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,
-                            letterSpacing = 0.4.sp
+                            letterSpacing = 0.3.sp
                         )
                     }
 
-                    // Places & Hospitals (Agrodealers, Vets, Hospitals)
+                    // Diseases: Causes, Preventions & Treatments
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
                         modifier = Modifier
-                            .clickable { viewModel.openPlacesDialog() }
+                            .clickable { viewModel.openDiseaseEncyclopedia() }
                             .weight(1f)
-                            .testTag("nav_places_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Storefront,
-                            contentDescription = "Places & Hospitals",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(22.dp)
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = if (isRw) "AMAVURIRO" else "CLINICS",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontSize = 9.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            letterSpacing = 0.4.sp
-                        )
-                    }
-
-                    // Study (Plant & Animal Shared Pathogens)
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                        modifier = Modifier
-                            .clickable { viewModel.openStudyDialog() }
-                            .weight(1f)
-                            .testTag("nav_study_button")
+                            .testTag("nav_diseases_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Biotech,
-                            contentDescription = "Plant & Animal Diseases Study",
+                            contentDescription = "Disease Causes, Prevention & Treatments",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = if (isRw) "INYIGISHO" else "STUDY",
+                            text = if (isRw) "INDWARA" else "DISEASES",
                             style = MaterialTheme.typography.labelSmall,
-                            fontSize = 9.5.sp,
+                            fontSize = 8.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            letterSpacing = 0.4.sp
+                            letterSpacing = 0.2.sp
                         )
                     }
 
-                    // Records (History)
+                    // Growth Tips & Stage Guides
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
                         modifier = Modifier
-                            .clickable { showHistoryDialog = true }
+                            .clickable { viewModel.openGrowthTips() }
                             .weight(1f)
-                            .testTag("nav_history_button")
+                            .testTag("nav_growth_tips_button")
                     ) {
                         Icon(
-                            imageVector = Icons.Default.History,
-                            contentDescription = "Records",
+                            imageVector = Icons.Default.Spa,
+                            contentDescription = "Crop & Animal Growth Tips",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = if (isRw) "AMATEKA" else "HISTORY",
+                            text = if (isRw) "INAMA" else "GROWTH",
                             style = MaterialTheme.typography.labelSmall,
-                            fontSize = 9.5.sp,
+                            fontSize = 8.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            letterSpacing = 0.4.sp
+                            letterSpacing = 0.2.sp
                         )
                     }
 
-                    // Expert Hotline (Call RAB 114)
+                    // Local Medical Supplies Map
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
                         modifier = Modifier
-                            .clickable {
-                                val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:114"))
-                                context.startActivity(intent)
+                            .clickable { viewModel.openMedicalMap() }
+                            .weight(1f)
+                            .testTag("nav_map_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Map,
+                            contentDescription = "Local Medical Supplies Map",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (isRw) "IKARITA" else "MAP",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 0.2.sp
+                        )
+                    }
+
+                    // Farm Alerts & Notifications
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .clickable { viewModel.openNotifications() }
+                            .weight(1f)
+                            .testTag("nav_alerts_button")
+                    ) {
+                        Box(contentAlignment = Alignment.TopEnd) {
+                            Icon(
+                                imageVector = Icons.Default.NotificationsActive,
+                                contentDescription = "Farm Alerts & Outbreaks",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            if (uiState.unreadAlertsCount > 0) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = Color(0xFFD32F2F),
+                                    modifier = Modifier.size(8.dp)
+                                ) {}
                             }
+                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (isRw) "IMPURUZA" else "ALERTS",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 0.2.sp
+                        )
+                    }
+
+                    // Farmer Personal Profile
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .clickable { viewModel.openFarmerProfileDialog() }
                             .weight(1f)
-                            .testTag("nav_hotline_button")
+                            .testTag("nav_farmer_profile_button")
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Call,
-                            contentDescription = "Expert Hotline",
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Farmer Profile",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "RAB 114",
+                            text = if (isRw) "UMWIRONDORO" else "PROFILE",
                             style = MaterialTheme.typography.labelSmall,
-                            fontSize = 9.5.sp,
+                            fontSize = 8.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            letterSpacing = 0.4.sp
+                            letterSpacing = 0.2.sp
                         )
                     }
                 }
@@ -537,7 +696,375 @@ fun AgriDoctorScreen(
                 )
             }
 
-            // 2. Input Form Card
+            // 1.5 Farmer Personal Hub Card
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("farmer_personal_quick_card"),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
+                    border = CardDefaults.outlinedCardBorder().copy(
+                        width = 1.dp,
+                        brush = androidx.compose.ui.graphics.SolidColor(GeoPrimary.copy(alpha = 0.25f))
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(GeoPrimary.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Person,
+                                        contentDescription = null,
+                                        tint = GeoPrimary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = "${uiState.farmerProfile.fullName} (${uiState.farmerProfile.district})",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = if (isRw) "${uiState.farmerProfile.primaryCrops.firstOrNull() ?: "Ibihingwa"} • ${uiState.farmerProfile.livestockOwned.firstOrNull() ?: "Amatungo"}" else "${uiState.farmerProfile.farmAreaHectares} Ha • ${uiState.farmerProfile.primaryCrops.take(2).joinToString(", ")}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            TextButton(
+                                onClick = { viewModel.openFarmerProfileDialog() },
+                                modifier = Modifier.testTag("edit_personal_profile_btn")
+                            ) {
+                                Text(
+                                    text = if (isRw) "Hindura" else "Profile",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = GeoPrimary
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Fast action chips: Map & Diseases
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Surface(
+                                color = GeoPrimary.copy(alpha = 0.12f),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { viewModel.openMedicalMap() }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(imageVector = Icons.Default.Map, contentDescription = null, tint = GeoPrimary, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = if (isRw) "Ikarita y'Imiti" else "Supplies Map",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        color = GeoPrimary
+                                    )
+                                }
+                            }
+
+                            Surface(
+                                color = EmeraldGreen.copy(alpha = 0.12f),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { viewModel.openDiseaseEncyclopedia() }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(imageVector = Icons.Default.Biotech, contentDescription = null, tint = EmeraldGreen, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = if (isRw) "Indwara n'Ubuvuzi" else "Pathology Guide",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        color = EmeraldGreen
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 1.8 Offline Mode Status & Smart Tools Hub
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // Offline Access Status Banner
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (uiState.isOfflineMode) Color(0xFFFFF3E0) else GeoPrimary.copy(alpha = 0.08f),
+                        border = CardDefaults.outlinedCardBorder().copy(
+                            width = 1.dp,
+                            brush = androidx.compose.ui.graphics.SolidColor(
+                                if (uiState.isOfflineMode) Color(0xFFFF9800) else GeoPrimary.copy(alpha = 0.25f)
+                            )
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.toggleOfflineMode() }
+                            .testTag("offline_access_banner")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (uiState.isOfflineMode) Color(0xFFE65100) else GeoPrimary,
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = if (uiState.isOfflineMode) Icons.Default.CloudOff else Icons.Default.CloudDone,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = if (uiState.isOfflineMode) {
+                                            if (isRw) "Uburyo Bwite bwa Telefoni (100% Offline Active)" else "100% Offline Mode Active"
+                                        } else {
+                                            if (isRw) "Agri-Doctor Online + Ububiko bwa Telefoni (Offline Cache)" else "Online AI + Offline Room Database"
+                                        },
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        color = if (uiState.isOfflineMode) Color(0xFFE65100) else GeoPrimary
+                                    )
+                                    Text(
+                                        text = if (uiState.isOfflineMode) {
+                                            if (isRw) "Ubusuzume burakora nta interineti ikoreshejwe ukoresheje ububiko bwa Rwanda" else "Diagnoses operate instantly offline without consuming internet data"
+                                        } else {
+                                            if (isRw) "Gusuzuma bikoresha Gemini AI; amateka yose abikwa muri telefoni" else "Gemini AI diagnostic active; all records stored locally in Room"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (uiState.isOfflineMode) Color(0xFFE65100) else GeoPrimary
+                            ) {
+                                Text(
+                                    text = if (uiState.isOfflineMode) {
+                                        if (isRw) "Guhindura" else "Switch"
+                                    } else {
+                                        if (isRw) "Koresha Offline" else "Go Offline"
+                                    },
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Smart Tools Quick Bar: Growth Tips & Voice Diagnosis & Notifications
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Growth Tips Card
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { viewModel.openGrowthTips() }
+                                .testTag("quick_growth_tips_card"),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+                            border = CardDefaults.outlinedCardBorder()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = GeoPrimary.copy(alpha = 0.15f),
+                                    modifier = Modifier.size(34.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(imageVector = Icons.Default.Spa, contentDescription = null, tint = GeoPrimary, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = if (isRw) "Inama z'Ubuhinzi" else "Growth Tips",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    textAlign = TextAlign.Center,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = if (isRw) "Ibyiciro n'Igihe" else "Stage Guides",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 9.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        // Voice Diagnosis Card
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { viewModel.openVoiceDiagnosis() }
+                                .testTag("quick_voice_diagnosis_card"),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+                            border = CardDefaults.outlinedCardBorder()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = EmeraldGreen.copy(alpha = 0.15f),
+                                    modifier = Modifier.size(34.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(imageVector = Icons.Default.Mic, contentDescription = null, tint = EmeraldGreen, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = if (isRw) "Suzuma n'Ijwi" else "Voice Diagnosis",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    textAlign = TextAlign.Center,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = if (isRw) "Vuga ibimenyetso" else "Speak Symptoms",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 9.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        // Farm Alerts Card
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { viewModel.openNotifications() }
+                                .testTag("quick_farm_alerts_card"),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+                            border = CardDefaults.outlinedCardBorder()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Box(contentAlignment = Alignment.TopEnd) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = Color(0xFFD32F2F).copy(alpha = 0.15f),
+                                        modifier = Modifier.size(34.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(imageVector = Icons.Default.NotificationsActive, contentDescription = null, tint = Color(0xFFD32F2F), modifier = Modifier.size(18.dp))
+                                        }
+                                    }
+                                    if (uiState.unreadAlertsCount > 0) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = Color(0xFFD32F2F),
+                                            modifier = Modifier.size(12.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Text(
+                                                    text = "${uiState.unreadAlertsCount}",
+                                                    color = Color.White,
+                                                    fontSize = 7.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = if (isRw) "Impuruza" else "Farm Alerts",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    textAlign = TextAlign.Center,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = if (isRw) "Ibyorezo & Imvura" else "Outbreak Alerts",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 9.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. Weather Alerts & Agro-Met Disease Advisory
+            item {
+                val currentAlert = WeatherAlertRepository.getAlertForDistrict(uiState.selectedWeatherDistrict)
+                WeatherAlertCard(
+                    alert = currentAlert,
+                    isKinyarwanda = isRw,
+                    onDistrictSelected = { district ->
+                        viewModel.setWeatherDistrict(district)
+                    },
+                    onOpenDetails = {
+                        viewModel.openWeatherDialog()
+                    }
+                )
+            }
+
+            // 3. Input Form Card
             item {
                 Card(
                     modifier = Modifier
@@ -634,35 +1161,69 @@ fun AgriDoctorScreen(
                                 }
                             }
                         } else {
+                            // 1. Primary Live Camera Scanner Button
+                            Button(
+                                onClick = { viewModel.openCameraScanner() },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(54.dp)
+                                    .testTag("live_camera_scanner_button"),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary
+                                ),
+                                elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CameraAlt,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp),
+                                    tint = Color.White
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = if (isRw) "Gucana Kamera Ukasuzuma (Live AI Scanner)" else "Open Live Camera Scanner",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.5.sp,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = if (isRw) "Koresha kamera ya telefoni usuzume amababi" else "Scan diseased leaf or stem with live reticle",
+                                        fontSize = 10.sp,
+                                        color = Color.White.copy(alpha = 0.85f)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 OutlinedButton(
                                     onClick = { launchCamera() },
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(52.dp)
+                                        .height(46.dp)
                                         .testTag("camera_button"),
-                                    shape = RoundedCornerShape(16.dp),
+                                    shape = RoundedCornerShape(14.dp),
                                     colors = ButtonDefaults.outlinedButtonColors(
-                                        contentColor = GeoPrimary
-                                    ),
-                                    border = ButtonDefaults.outlinedButtonBorder.copy(
-                                        brush = androidx.compose.ui.graphics.SolidColor(GeoSageBorder)
+                                        contentColor = MaterialTheme.colorScheme.primary
                                     )
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.CameraAlt,
                                         contentDescription = null,
-                                        modifier = Modifier.size(20.dp),
-                                        tint = GeoPrimary
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.primary
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Camera", fontWeight = FontWeight.Bold)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(if (isRw) "Fata Ifoto" else "Quick Photo", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
 
-                                Button(
+                                OutlinedButton(
                                     onClick = {
                                         photoPickerLauncher.launch(
                                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
@@ -670,21 +1231,21 @@ fun AgriDoctorScreen(
                                     },
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(52.dp)
+                                        .height(46.dp)
                                         .testTag("gallery_button"),
-                                    shape = RoundedCornerShape(16.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = GeoPrimary
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.primary
                                     )
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.AddPhotoAlternate,
                                         contentDescription = null,
-                                        modifier = Modifier.size(20.dp),
-                                        tint = Color.White
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.primary
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Gallery", fontWeight = FontWeight.Bold, color = Color.White)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(if (isRw) "Ububiko (Gallery)" else "Gallery", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
 
@@ -944,7 +1505,40 @@ fun AgriDoctorScreen(
                             maxLines = 4
                         )
 
-                        Spacer(modifier = Modifier.height(20.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Voice Assistant Symptom Input Button
+                        OutlinedButton(
+                            onClick = { viewModel.openVoiceDiagnosis() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(46.dp)
+                                .testTag("voice_symptom_input_btn"),
+                            shape = RoundedCornerShape(14.dp),
+                            border = ButtonDefaults.outlinedButtonBorder.copy(
+                                brush = androidx.compose.ui.graphics.SolidColor(EmeraldGreen)
+                            ),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = EmeraldGreen.copy(alpha = 0.08f),
+                                contentColor = EmeraldGreen
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Mic,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = EmeraldGreen
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (isRw) "🎙️ Vuga ibimenyetso n'Ijwi (Voice Diagnosis)" else "🎙️ Speak Symptoms by Voice",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = EmeraldGreen
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(18.dp))
 
                         // Diagnose Button
                         Button(
@@ -1075,10 +1669,107 @@ fun AgriDoctorScreen(
             }
         )
     }
+
+    // Live Camera Scanner Viewfinder Dialog
+    CameraScannerDialog(
+        isOpen = uiState.showCameraScanner,
+        isKinyarwanda = isRw,
+        onDismiss = { viewModel.closeCameraScanner() },
+        onPhotoCaptured = { uri ->
+            viewModel.onPhotoSelected(uri)
+            viewModel.closeCameraScanner()
+        },
+        onOpenGallery = {
+            photoPickerLauncher.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+        }
+    )
+
+    // Weather Agro-Met Advisory Dialog
+    WeatherAlertDialog(
+        alert = WeatherAlertRepository.getAlertForDistrict(uiState.selectedWeatherDistrict),
+        isKinyarwanda = isRw,
+        isOpen = uiState.showWeatherDialog,
+        onDismiss = { viewModel.closeWeatherDialog() }
+    )
+
+    // Farmer Personal Profile Dialog
+    FarmerPersonalProfileDialog(
+        isOpen = uiState.showFarmerProfileDialog,
+        isKinyarwanda = isRw,
+        currentProfile = uiState.farmerProfile,
+        onDismiss = { viewModel.closeFarmerProfileDialog() },
+        onSaveProfile = { updated ->
+            viewModel.updateFarmerProfile(updated)
+        },
+        onSyncWithLocation = { dist, locStr ->
+            viewModel.syncFarmerLocation(dist, locStr)
+        }
+    )
+
+    // Comprehensive Plant and Animal Disease Encyclopedia (Causes, Preventions, Treatments)
+    DiseaseEncyclopediaDialog(
+        isOpen = uiState.showDiseaseEncyclopedia,
+        isKinyarwanda = isRw,
+        onDismiss = { viewModel.closeDiseaseEncyclopedia() },
+        onOpenMedicalMap = { district ->
+            viewModel.openMedicalMap(district)
+        }
+    )
+
+    // Local Medical Supplies & Treatment Centers Map for Farmers
+    LocalMedicalSupplyMapDialog(
+        isOpen = uiState.showMedicalMap,
+        isKinyarwanda = isRw,
+        farmerDistrict = uiState.farmerProfile.district,
+        onDismiss = { viewModel.closeMedicalMap() }
+    )
+
+    // Voice-to-Text Diagnosis Dialog (Kinyarwanda & English Speech Recognition)
+    VoiceDiagnosisDialog(
+        isOpen = uiState.showVoiceDiagnosisDialog,
+        isKinyarwanda = isRw,
+        initialCrop = uiState.selectedCrop,
+        onDismiss = { viewModel.closeVoiceDiagnosis() },
+        onDiagnoseVoice = { voiceText, crop ->
+            viewModel.diagnoseFromVoice(voiceText, crop)
+        },
+        onPlaySampleAudio = { text ->
+            viewModel.speakCustomText(text)
+        }
+    )
+
+    // Stage-by-Stage Crop & Livestock Growth Tips Dialog with Voice Audio
+    GrowthTipsDialog(
+        isOpen = uiState.showGrowthTipsDialog,
+        isKinyarwanda = isRw,
+        onDismiss = { viewModel.closeGrowthTips() },
+        onReadAloud = { text ->
+            viewModel.speakCustomText(text)
+        }
+    )
+
+    // Farm Push Alerts & Reminders Center
+    FarmNotificationsDialog(
+        isOpen = uiState.showNotificationsDialog,
+        isKinyarwanda = isRw,
+        farmerDistrict = uiState.farmerProfile.district,
+        onDismiss = { viewModel.closeNotifications() },
+        onNavigateAction = { actionType ->
+            when (actionType) {
+                "WEATHER" -> viewModel.openWeatherDialog()
+                "DISEASE_OUTBREAK" -> viewModel.openDiseaseEncyclopedia()
+                "VACCINE_REMINDER" -> viewModel.openMedicalMap()
+                "GROWTH_STAGE" -> viewModel.openGrowthTips()
+            }
+        }
+    )
 }
 
 @Composable
 fun HeroBanner(
+    isKinyarwanda: Boolean = true,
     onCallRAB: () -> Unit,
     onOpenPlaces: () -> Unit,
     onOpenStudy: () -> Unit,
@@ -1150,14 +1841,18 @@ fun HeroBanner(
                     .padding(20.dp)
             ) {
                 Text(
-                    text = "Muganga w'Ibihingwa byawe mu Rwanda",
+                    text = if (isKinyarwanda) "Muganga w'Ibihingwa byawe mu Rwanda" else "Your AI Crop & Livestock Health Doctor",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "Gusuzuma indwara z'ibihingwa, umuti gakondo, uwa kizungu n'aho ugurirwa mu karere kanyu.",
+                    text = if (isKinyarwanda) {
+                        "Gusuzuma indwara z'ibihingwa, umuti gakondo, uwa kizungu n'aho ugurirwa mu karere kanyu."
+                    } else {
+                        "Instant crop disease scanning, traditional remedies, certified chemical solutions, and agrodealers across Rwanda."
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = GeoSageContainer.copy(alpha = 0.95f),
                     lineHeight = 20.sp

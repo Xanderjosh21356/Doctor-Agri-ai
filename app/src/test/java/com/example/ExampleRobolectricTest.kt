@@ -68,6 +68,19 @@ class ExampleRobolectricTest {
     assertNotNull(diag)
     assertTrue("Should recommend local agrodealers and hospitals", diag.localAgrodealers.contains("Agrodealer") || diag.localAgrodealers.contains("Hospital") || diag.localAgrodealers.contains("Ibitaro"))
   }
+
+  @Test
+  fun `weather alert repository provides agro met advisory for districts`() {
+    val alerts = com.example.data.repository.WeatherAlertRepository.alerts
+    assertTrue("Should have multiple Rwanda agricultural districts", alerts.size >= 5)
+
+    val musanzeAlert = com.example.data.repository.WeatherAlertRepository.getAlertForDistrict("Musanze")
+    assertNotNull("Musanze alert should exist", musanzeAlert)
+    assertTrue("Should contain rain chance or temperature", musanzeAlert.rainProbability > 0)
+    assertTrue("Should contain Kinyarwanda action plan", musanzeAlert.farmingActionRw.isNotBlank())
+    assertTrue("Should contain English action plan", musanzeAlert.farmingActionEn.isNotBlank())
+    assertTrue("Should indicate vulnerable crops or animals", musanzeAlert.affectedCropsAndAnimals.isNotBlank())
+  }
 }
 
 

@@ -17,19 +17,21 @@ android {
     applicationId = "com.aistudio.agridoctor.rwnda"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = 2
+    versionName = "1.1"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
   signingConfigs {
     create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
+      val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+        ?: System.getenv("KEYSTORE_PATH")
+        ?: "${rootDir}/upload-keystore.jks"
       storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+      storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: System.getenv("STORE_PASSWORD")
+      keyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: "upload"
+      keyPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: System.getenv("KEY_PASSWORD")
     }
     create("debugConfig") {
       storeFile = file("${rootDir}/debug.keystore")
@@ -80,10 +82,10 @@ dependencies {
   implementation(platform(libs.firebase.bom))
   // implementation(libs.accompanist.permissions)
   implementation(libs.androidx.activity.compose)
-  // implementation(libs.androidx.camera.camera2)
-  // implementation(libs.androidx.camera.core)
-  // implementation(libs.androidx.camera.lifecycle)
-  // implementation(libs.androidx.camera.view)
+  implementation(libs.androidx.camera.camera2)
+  implementation(libs.androidx.camera.core)
+  implementation(libs.androidx.camera.lifecycle)
+  implementation(libs.androidx.camera.view)
   implementation(libs.androidx.compose.material.icons.core)
   implementation(libs.androidx.compose.material.icons.extended)
   implementation(libs.androidx.compose.material3)

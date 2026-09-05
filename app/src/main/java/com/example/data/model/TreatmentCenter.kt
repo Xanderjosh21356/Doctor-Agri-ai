@@ -19,5 +19,9 @@ data class TreatmentCenter(
     val availableSupplies: List<String>,
     val averagePricesRwf: String,
     val description: String,
-    val isEmergency24h: Boolean = false
+    val isEmergency24h: Boolean = false,
+    val latitude: Double = -1.9441,
+    val longitude: Double = 30.0619,
+    val mapXPercent: Float = 0.5f,
+    val mapYPercent: Float = 0.5f
 )
