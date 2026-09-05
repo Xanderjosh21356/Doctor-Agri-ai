@@ -1,0 +1,6 @@
+{
+  "name": "Agri-Doctor AI",
+  "description": "Expert agricultural assistant diagnosing crop diseases for small-scale farmers in Rwanda and East Africa with practical treatments and agrodealer localization.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
